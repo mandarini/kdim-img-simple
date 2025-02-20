@@ -1,4 +1,3 @@
-import React from 'react';
 import { LogIn, LogOut } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
@@ -13,12 +12,20 @@ export function AuthButton({ isAuthenticated, onAuthChange }: Props) {
       await supabase.auth.signOut();
       onAuthChange(false);
     } else {
-      await supabase.auth.signInWithOAuth({
+      const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: window.location.origin
+          redirectTo: `${window.location.origin}`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'consent'
+          }
         }
       });
+
+      if (error) {
+        console.error('Authentication error:', error.message);
+      }
     }
   };
 

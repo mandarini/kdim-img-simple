@@ -1,6 +1,6 @@
 export const config = {
   // Set to true to use real Supabase auth, false for mock auth
-  useRealAuth: false,
+  useRealAuth: true,
   
   // Mock user data (used when useRealAuth is false)
   mockUser: {
