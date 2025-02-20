@@ -1,10 +1,10 @@
-import React, { useEffect, useState } from 'react';
-import { ImageUploader } from './components/ImageUploader';
-import { AuthButton } from './components/AuthButton';
-import { StatusBanner, StatusType } from './components/StatusBanner';
-import { supabase, analyzeImages } from './lib/supabase';
-import { ImageIcon, Copy, Download } from 'lucide-react';
-import type { ProcessedImage, ImageMetadata } from './types';
+import { useEffect, useState } from "react";
+import { ImageUploader } from "./components/ImageUploader";
+import { AuthButton } from "./components/AuthButton";
+import { StatusBanner, StatusType } from "./components/StatusBanner";
+import { supabase, analyzeImages } from "./lib/supabase";
+import { ImageIcon, Copy, Download } from "lucide-react";
+import type { ProcessedImage } from "./types";
 
 interface Status {
   message: string;
@@ -13,29 +13,55 @@ interface Status {
 
 function App() {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
   const [images, setImages] = useState<ProcessedImage[]>([]);
   const [status, setStatus] = useState<Status | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   useEffect(() => {
     // Check initial auth state
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(({ data: { session }, error }) => {
+      if (error) {
+        console.error("Error checking auth state:", error.message);
+        setStatus({
+          message: "Error checking authentication status",
+          type: "error",
+        });
+      }
       setIsAuthenticated(!!session);
+      setIsLoading(false);
     });
 
     // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
+      if (event === "SIGNED_IN") {
+        setStatus({
+          message: "Successfully signed in!",
+          type: "success",
+        });
+      } else if (event === "SIGNED_OUT") {
+        setStatus({
+          message: "Successfully signed out",
+          type: "info",
+        });
+        setImages([]);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleImagesSelected = async (selectedImages: ProcessedImage[], shouldAnalyze = true) => {
+  const handleImagesSelected = async (
+    selectedImages: ProcessedImage[],
+    shouldAnalyze = true
+  ) => {
     if (!isAuthenticated) {
       setStatus({
-        message: 'Please sign in to analyze images',
-        type: 'error'
+        message: "Please sign in to analyze images",
+        type: "error",
       });
       return;
     }
@@ -46,26 +72,33 @@ function App() {
     if (shouldAnalyze && selectedImages.length > 0) {
       setIsAnalyzing(true);
       setStatus({
-        message: 'Analyzing images...',
-        type: 'info'
+        message: "Analyzing images...",
+        type: "info",
       });
 
       try {
-        const results = await analyzeImages(selectedImages.map(img => img.base64));
-        
-        setImages(selectedImages.map((img, i) => ({
-          ...img,
-          metadata: results[i]
-        })));
+        const results = await analyzeImages(
+          selectedImages.map((img) => img.base64)
+        );
+
+        setImages(
+          selectedImages.map((img, i) => ({
+            ...img,
+            metadata: results[i],
+          }))
+        );
 
         setStatus({
-          message: 'Analysis complete!',
-          type: 'success'
+          message: "Analysis complete!",
+          type: "success",
         });
       } catch (error) {
         setStatus({
-          message: 'Failed to analyze images. Please try again.',
-          type: 'error'
+          message:
+            error instanceof Error
+              ? error.message
+              : "Failed to analyze images. Please try again.",
+          type: "error",
         });
       } finally {
         setIsAnalyzing(false);
@@ -77,37 +110,50 @@ function App() {
     try {
       await navigator.clipboard.writeText(text);
       setStatus({
-        message: 'Copied to clipboard!',
-        type: 'success'
+        message: "Copied to clipboard!",
+        type: "success",
       });
     } catch (error) {
       setStatus({
-        message: 'Failed to copy to clipboard',
-        type: 'error'
+        message: "Failed to copy to clipboard",
+        type: "error",
       });
     }
   };
 
   const downloadCSV = () => {
-    const headers = ['Filename', 'Title', 'Description', 'Keywords'];
-    const rows = images.map(img => [
+    const headers = ["Filename", "Title", "Description", "Keywords"];
+    const rows = images.map((img) => [
       img.originalName,
-      img.metadata?.title || '',
-      img.metadata?.description || '',
-      (img.metadata?.keywords || []).join(', ')
+      img.metadata?.title || "",
+      img.metadata?.description || "",
+      (img.metadata?.keywords || []).join(", "),
     ]);
 
     const csvContent = [
-      headers.join(','),
-      ...rows.map(row => row.map(cell => `"${cell.replace(/"/g, '""')}"`).join(','))
-    ].join('\n');
+      headers.join(","),
+      ...rows.map((row) =>
+        row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")
+      ),
+    ].join("\n");
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const link = document.createElement("a");
     link.href = URL.createObjectURL(blob);
-    link.download = 'image-analysis.csv';
+    link.download = "image-analysis.csv";
     link.click();
   };
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (!isAuthenticated) {
     return (
@@ -159,7 +205,7 @@ function App() {
           />
         )}
         <div className="bg-white rounded-lg shadow-sm p-6">
-          <ImageUploader 
+          <ImageUploader
             onImagesSelected={handleImagesSelected}
             disabled={isAnalyzing}
           />
@@ -169,7 +215,9 @@ function App() {
         {images.length > 0 && !isAnalyzing && (
           <div className="mt-8 space-y-8">
             <div className="flex justify-between items-center">
-              <h2 className="text-xl font-semibold text-gray-900">Analysis Results</h2>
+              <h2 className="text-xl font-semibold text-gray-900">
+                Analysis Results
+              </h2>
               {images.length > 1 && (
                 <button
                   onClick={downloadCSV}
@@ -182,7 +230,10 @@ function App() {
             </div>
             <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-3">
               {images.map((image) => (
-                <div key={image.id} className="bg-white rounded-lg shadow-sm overflow-hidden">
+                <div
+                  key={image.id}
+                  className="bg-white rounded-lg shadow-sm overflow-hidden"
+                >
                   <div className="aspect-video relative">
                     <div className="absolute inset-0 flex items-center justify-center bg-gray-100">
                       <ImageIcon className="h-8 w-8 text-gray-400" />
@@ -201,27 +252,39 @@ function App() {
                       <div className="space-y-3">
                         <div>
                           <button
-                            onClick={() => copyToClipboard(image.metadata!.title)}
+                            onClick={() =>
+                              copyToClipboard(image.metadata!.title)
+                            }
                             className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                           >
                             <Copy className="h-4 w-4" />
                             <span className="font-medium">Title:</span>
                           </button>
-                          <p className="mt-1 text-gray-900">{image.metadata.title}</p>
+                          <p className="mt-1 text-gray-900">
+                            {image.metadata.title}
+                          </p>
                         </div>
                         <div>
                           <button
-                            onClick={() => copyToClipboard(image.metadata!.description)}
+                            onClick={() =>
+                              copyToClipboard(image.metadata!.description)
+                            }
                             className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                           >
                             <Copy className="h-4 w-4" />
                             <span className="font-medium">Description:</span>
                           </button>
-                          <p className="mt-1 text-gray-900">{image.metadata.description}</p>
+                          <p className="mt-1 text-gray-900">
+                            {image.metadata.description}
+                          </p>
                         </div>
                         <div>
                           <button
-                            onClick={() => copyToClipboard(image.metadata!.keywords.join(', '))}
+                            onClick={() =>
+                              copyToClipboard(
+                                image.metadata!.keywords.join(", ")
+                              )
+                            }
                             className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900"
                           >
                             <Copy className="h-4 w-4" />
