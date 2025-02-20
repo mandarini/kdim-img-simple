@@ -9,7 +9,10 @@ const anthropic = new Anthropic({
 // Retry configuration
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000; // 1 second
-const DEFAULT_DAILY_LIMIT = 10;
+
+// Get environment variables
+const DEFAULT_DAILY_LIMIT = parseInt(Deno.env.get("DEFAULT_DAILY_LIMIT") || "10", 10);
+const CLAUDE_MODEL = Deno.env.get("CLAUDE_MODEL") || "claude-3-sonnet-20240229";
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -35,7 +38,7 @@ async function retryWithBackoff<T>(
 async function analyzeImage(imageBase64: string) {
   return retryWithBackoff(async () => {
     const response = await anthropic.messages.create({
-      model: "claude-3-sonnet-20240229",
+      model: CLAUDE_MODEL,
       max_tokens: 1024,
       messages: [
         {
