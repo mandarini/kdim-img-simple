@@ -1,62 +1,122 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.39.7'
-import { Anthropic } from 'https://esm.sh/@anthropic-ai/sdk@0.14.1'
+import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { Anthropic } from "https://esm.sh/@anthropic-ai/sdk@0.14.1";
 
-interface RequestBody {
-  images: string[];
-}
+const anthropic = new Anthropic({
+  apiKey: Deno.env.get("ANTHROPIC_API_KEY")!
+});
 
 serve(async (req) => {
-  try {
-    // CORS headers
-    if (req.method === 'OPTIONS') {
-      return new Response('ok', {
-        headers: {
-          'Access-Control-Allow-Origin': '*',
-          'Access-Control-Allow-Methods': 'POST',
-          'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-        }
-      })
-    }
+  // Handle CORS preflight
+  if (req.method === "OPTIONS") {
+    return new Response("ok", {
+      headers: {
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "POST",
+        "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+      }
+    });
+  }
 
+  try {
     // Validate request
-    if (req.method !== 'POST') {
-      return new Response('Method not allowed', { status: 405 })
+    if (req.method !== "POST") {
+      return new Response(
+        JSON.stringify({ error: "Method not allowed" }), 
+        { 
+          status: 405,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
     }
 
     // Get request body
-    const { images } = await req.json() as RequestBody
-
-    if (!images?.length) {
-      return new Response('No images provided', { status: 400 })
+    const { images } = await req.json();
+    if (!images?.length || !Array.isArray(images) || images.length > 5) {
+      return new Response(
+        JSON.stringify({ error: "Please provide between 1 and 5 images" }), 
+        { 
+          status: 400,
+          headers: {
+            "Content-Type": "application/json",
+            "Access-Control-Allow-Origin": "*"
+          }
+        }
+      );
     }
 
-    // TODO: Implement rate limiting
-    // TODO: Implement Anthropic Claude API call
-    // TODO: Return actual metadata
+    // Process images with Claude
+    const results = await Promise.all(
+      images.map(async (imageBase64) => {
+        try {
+          const response = await anthropic.messages.create({
+            model: "claude-3-sonnet-20240229",
+            max_tokens: 1024,
+            messages: [
+              {
+                role: "user",
+                content: [
+                  {
+                    type: "image",
+                    source: {
+                      type: "base64",
+                      media_type: "image/jpeg",
+                      data: imageBase64,
+                    },
+                  },
+                  {
+                    type: "text",
+                    text: "Analyze this image and provide a JSON response with the following structure: { title: string, description: string, keywords: string[] }. The title should be concise but descriptive, the description should be 2-3 sentences, and include up to 10 relevant keywords.",
+                  },
+                ],
+              },
+            ],
+          });
+
+          // Parse and validate the response
+          const result = JSON.parse(response.content[0].text);
+          return {
+            title: result.title || "Untitled Image",
+            description: result.description || "No description available",
+            keywords: Array.isArray(result.keywords) ? result.keywords.slice(0, 10) : [],
+          };
+        } catch (error) {
+          console.error("Error processing image:", error);
+          return {
+            title: "Error",
+            description: "Failed to process image",
+            keywords: [],
+          };
+        }
+      })
+    );
 
     return new Response(
-      JSON.stringify([
-        {
-          title: 'Sample Image',
-          description: 'This is a placeholder response',
-          keywords: ['sample', 'placeholder']
-        }
-      ]),
-      {
-        headers: {
-          'Content-Type': 'application/json',
-          'Access-Control-Allow-Origin': '*',
-        },
+      JSON.stringify(results),
+      { 
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        } 
       }
-    )
+    );
+
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
-      status: 500,
-      headers: {
-        'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
-      },
-    })
+    console.error("Edge function error:", error);
+    return new Response(
+      JSON.stringify({ 
+        error: "Internal server error",
+        message: error.message 
+      }), 
+      { 
+        status: 500,
+        headers: { 
+          "Content-Type": "application/json",
+          "Access-Control-Allow-Origin": "*"
+        } 
+      }
+    );
   }
-})
+});
