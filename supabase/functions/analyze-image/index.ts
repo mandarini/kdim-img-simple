@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.7";
 import { Anthropic } from "https://esm.sh/@anthropic-ai/sdk@0.14.1";
 
 const anthropic = new Anthropic({
@@ -8,6 +9,7 @@ const anthropic = new Anthropic({
 // Retry configuration
 const MAX_RETRIES = 3;
 const INITIAL_RETRY_DELAY = 1000; // 1 second
+const DEFAULT_DAILY_LIMIT = 10;
 
 async function sleep(ms: number) {
   return new Promise(resolve => setTimeout(resolve, ms));
@@ -33,7 +35,7 @@ async function retryWithBackoff<T>(
 async function analyzeImage(imageBase64: string) {
   return retryWithBackoff(async () => {
     const response = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20240620",
+      model: "claude-3-sonnet-20240229",
       max_tokens: 1024,
       messages: [
         {
@@ -56,25 +58,71 @@ async function analyzeImage(imageBase64: string) {
       ],
     });
 
-    // Extract the response text
     const responseText = response.content[0].text.trim();
-    
-    // Try to find JSON in the response
     const jsonMatch = responseText.match(/\{[\s\S]*\}/);
     if (!jsonMatch) {
       throw new Error("No JSON found in response");
     }
 
-    // Parse the JSON
     const result = JSON.parse(jsonMatch[0]);
-
-    // Validate and sanitize the result
     return {
       title: typeof result.title === 'string' ? result.title : "Untitled Image",
       description: typeof result.description === 'string' ? result.description : "No description available",
       keywords: Array.isArray(result.keywords) ? result.keywords.slice(0, 10) : [],
     };
   });
+}
+
+async function checkAndUpdateUserLimits(supabase: any, userId: string, imageCount: number) {
+  const today = new Date().toISOString().split('T')[0];
+
+  // Get user limits
+  const { data: limits, error: limitsError } = await supabase
+    .from('user_limits')
+    .select('*')
+    .eq('user_id', userId)
+    .single();
+
+  if (limitsError && limitsError.code !== 'PGRST116') {
+    throw new Error('Failed to check user limits');
+  }
+
+  // If no limits exist, create them
+  if (!limits) {
+    const { error: createError } = await supabase
+      .from('user_limits')
+      .insert({
+        user_id: userId,
+        upload_count: imageCount,
+        last_upload_date: today,
+        credits: 0
+      });
+
+    if (createError) throw new Error('Failed to create user limits');
+    return;
+  }
+
+  // Check if it's a new day
+  const isNewDay = limits.last_upload_date !== today;
+  const currentCount = isNewDay ? 0 : limits.upload_count;
+  const newCount = currentCount + imageCount;
+  const totalAllowed = DEFAULT_DAILY_LIMIT + (limits.credits || 0);
+
+  // Check if user has enough credits
+  if (newCount > totalAllowed) {
+    throw new Error(`Daily limit exceeded. You have used ${currentCount} out of ${totalAllowed} allowed uploads today.`);
+  }
+
+  // Update limits
+  const { error: updateError } = await supabase
+    .from('user_limits')
+    .update({
+      upload_count: newCount,
+      last_upload_date: today
+    })
+    .eq('user_id', userId);
+
+  if (updateError) throw new Error('Failed to update user limits');
 }
 
 serve(async (req) => {
@@ -90,34 +138,40 @@ serve(async (req) => {
   }
 
   try {
+    // Create Supabase client
+    const supabaseClient = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      {
+        global: {
+          headers: { Authorization: req.headers.get("Authorization")! },
+        },
+      }
+    );
+
+    // Get the authenticated user
+    const {
+      data: { user },
+      error: userError,
+    } = await supabaseClient.auth.getUser();
+
+    if (userError || !user) {
+      throw new Error("Unauthorized");
+    }
+
     // Validate request
     if (req.method !== "POST") {
-      return new Response(
-        JSON.stringify({ error: "Method not allowed" }), 
-        { 
-          status: 405,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
-          }
-        }
-      );
+      throw new Error("Method not allowed");
     }
 
     // Get request body
     const { images } = await req.json();
     if (!images?.length || !Array.isArray(images) || images.length > 5) {
-      return new Response(
-        JSON.stringify({ error: "Please provide between 1 and 5 images" }), 
-        { 
-          status: 400,
-          headers: {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*"
-          }
-        }
-      );
+      throw new Error("Please provide between 1 and 5 images");
     }
+
+    // Check and update user limits
+    await checkAndUpdateUserLimits(supabaseClient, user.id, images.length);
 
     // Process images sequentially with retry logic
     const results = [];
@@ -149,11 +203,12 @@ serve(async (req) => {
     console.error("Edge function error:", error);
     return new Response(
       JSON.stringify({ 
-        error: "Internal server error",
-        message: error.message 
+        error: error.message 
       }), 
       { 
-        status: 500,
+        status: error.message === "Unauthorized" ? 401 : 
+                error.message === "Method not allowed" ? 405 : 
+                error.message.includes("Daily limit exceeded") ? 429 : 500,
         headers: { 
           "Content-Type": "application/json",
           "Access-Control-Allow-Origin": "*"
