@@ -36,25 +36,41 @@ async function initializeUserLimits() {
   const { data: { user }, error: userError } = await supabase.auth.getUser();
   if (userError || !user) return null;
 
-  // Use upsert to either create or update the user limits
-  const { data: limits, error: upsertError } = await supabase
+  // First, try to get existing limits
+  const { data: existingLimits, error: checkError } = await supabase
     .from('user_limits')
-    .upsert({
+    .select('*')
+    .eq('user_id', user.id)
+    .single();
+
+  // If there's no error and we found limits, return them
+  if (!checkError && existingLimits) {
+    return existingLimits;
+  }
+
+  // If there was an error other than "not found", log it and return null
+  if (checkError && checkError.code !== 'PGRST116') { // PGRST116 is "not found" error
+    console.error('Error checking user limits:', checkError);
+    return null;
+  }
+
+  // If no limits exist, create them
+  const { data: newLimits, error: createError } = await supabase
+    .from('user_limits')
+    .insert({
       user_id: user.id,
       upload_count: 0,
       last_upload_date: new Date().toISOString().split('T')[0]
-    }, {
-      onConflict: 'user_id'
     })
     .select()
     .single();
 
-  if (upsertError) {
-    console.error('Error initializing user limits:', upsertError);
+  if (createError) {
+    console.error('Error creating user limits:', createError);
     return null;
   }
 
-  return limits;
+  return newLimits;
 }
 
 // Helper function to analyze images (uses mock or real API based on config)
@@ -75,16 +91,14 @@ export async function analyzeImages(base64Images: string[]): Promise<ImageMetada
       throw new Error('Daily upload limit exceeded. Please try again tomorrow.');
     }
 
-    // Update user limits using upsert
+    // Update user limits
     const { error: updateError } = await supabase
       .from('user_limits')
-      .upsert({
-        user_id: userLimits.user_id,
+      .update({
         upload_count: newCount,
         last_upload_date: today
-      }, {
-        onConflict: 'user_id'
-      });
+      })
+      .eq('user_id', userLimits.user_id);
 
     if (updateError) {
       throw new Error('Failed to update rate limits');
