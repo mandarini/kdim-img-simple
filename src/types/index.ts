@@ -9,6 +9,7 @@ export interface ImageSummary {
 export interface ProcessImageRequest {
   image: File;
   userId: string;
+  accessToken: string;
 }
 
 export interface ProcessedImage {

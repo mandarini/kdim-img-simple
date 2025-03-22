@@ -72,30 +72,31 @@ function App() {
 
   const handleSummarize = async () => {
     if (!isAuthenticated) return;
-  
+
     setStatus({ message: "Analyzing images...", type: "info" });
-  
-    // Step 1: get user ID from Supabase session
+
     const { data, error } = await supabase.auth.getSession();
-    const userId = data.session?.user.id;
-  
-    if (error || !userId) {
-      setStatus({ message: "Unable to get user ID. Please sign in again.", type: "error" });
+    const session = data.session;
+
+    if (error || !session) {
+      setStatus({ message: "Failed to retrieve session", type: "error" });
       return;
     }
-  
-    // Step 2: set processing states
+
+    const userId = session.user.id;
+    const accessToken = session.access_token;
+
     const newStates: Record<string, boolean> = {};
     images.forEach((img) => (newStates[img.id] = true));
     setProcessingStates(newStates);
-  
-    // Step 3: call processImage for each image
+
     try {
       const analyzed = await Promise.all(
         images.map(async (img) => {
           const metadata = await ImageService.processImage({
             image: img.file,
             userId,
+            accessToken,
           });
           return { ...img, metadata };
         })
@@ -104,12 +105,14 @@ function App() {
       setStatus({ message: "Analysis complete!", type: "success" });
     } catch (error) {
       console.error(error);
-      setStatus({ message: "Image analysis failed. Please try again.", type: "error" });
+      setStatus({
+        message: "Image analysis failed. Please try again.",
+        type: "error",
+      });
     } finally {
       setProcessingStates({});
     }
   };
-  
 
   const copyToClipboard = async (text: string) => {
     try {

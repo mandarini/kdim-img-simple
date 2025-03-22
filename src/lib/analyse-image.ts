@@ -28,6 +28,7 @@ export class ImageService {
   static async processImage({
     image,
     userId,
+    accessToken,
   }: ProcessImageRequest): Promise<ImageSummary> {
     const preview = await this.getImagePreview(image);
 
@@ -40,6 +41,9 @@ export class ImageService {
 
     const res = await fetch(`${apiUrl}/analyze`, {
       method: "POST",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
       body: formData,
     });
 
