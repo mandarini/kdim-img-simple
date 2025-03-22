@@ -1,18 +1,21 @@
-export interface ImageMetadata {
+export interface ImageSummary {
+  id: string;
   title: string;
   description: string;
   keywords: string[];
+  preview: string;
 }
 
-export interface UserLimits {
-  upload_count: number;
-  last_upload_date: string;
+export interface ProcessImageRequest {
+  image: File;
+  userId: string;
+  accessToken: string;
 }
 
 export interface ProcessedImage {
   id: string;
+  file: File;
   base64: string;
   originalName: string;
-  metadata?: ImageMetadata;
-  error?: string;
+  metadata: ImageSummary | null;
 }
