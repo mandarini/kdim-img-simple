@@ -1,130 +1,120 @@
 # Anthropic Image Summarizer
 
-A modern web application that uses Claude 3 to analyze and generate detailed descriptions of images. Built with React, Supabase, and Anthropic's Claude API.
+A web application that allows authenticated users to upload up to 10 images, analyze them using an external API, and view AI-generated summaries including title, description, and keywords for each image. Users can export the results as a CSV and copy metadata to their clipboard.
 
-![Anthropic Image Summarizer](https://images.unsplash.com/photo-1633409361618-c73427e4e206?auto=format&fit=crop&q=80&w=2080)
+---
 
-## Features
+## ✨ Features
 
-- 🖼️ Upload and analyze up to 5 images simultaneously
-- 🤖 AI-powered image analysis using Claude 3
-- 📝 Generates titles, descriptions, and keywords for each image
-- 🔒 Secure authentication with Supabase
-- 📊 Rate limiting (10 images per day per user)
-- 📱 Responsive design with Tailwind CSS
-- 🎨 Modern UI with drag-and-drop support
+- 🔐 Google authentication using Supabase (auth-only)
+- 📁 Drag & drop image uploader (up to 10 JPEG/PNG images, 20MB each)
+- 📊 AI-powered summarization of each image via an external API
+- 🖼️ Image preview thumbnails before and after summarization
+- ✅ Results include: Title, Description, and Keywords
+- 📋 Copy metadata to clipboard with one click
+- 📄 Export all results to CSV
 
-## Tech Stack
+---
 
-- **Frontend**: React, TypeScript, Tailwind CSS
-- **Backend**: Supabase Edge Functions, PostgreSQL
-- **AI**: Anthropic Claude 3
-- **Authentication**: Supabase Auth
-- **Hosting**: Supabase
+## 🚀 Tech Stack
 
-## Prerequisites
+- **React + TypeScript**
+- **Tailwind CSS**
+- **Supabase** (auth only)
+- **External API** for image analysis
+- **Lucide React** icons
 
-- Node.js 18+
-- Supabase account
-- Anthropic API key
+---
 
-## Environment Variables
+## 📦 Folder Structure
 
-Create a `.env` file in the root directory:
+```bash
+src/
+├── App.tsx                 # Main app logic and UI
+├── components/
+│   ├── ImageUploader.tsx   # Drag & drop image uploader
+│   ├── AuthButton.tsx      # Sign in/out with Supabase
+│   └── StatusBanner.tsx    # Status messages
+├── lib/
+│   ├── supabase.ts         # Supabase client (auth only)
+│   └── analyse-image.ts    # Handles image processing and API call
+├── types/
+│   └── index.ts            # Shared types
+```
+
+---
+
+## 🔧 Configuration
+
+### 1. Environment Variables
+
+Create a `.env` file with the following:
 
 ```env
-VITE_SUPABASE_URL=your_supabase_url
-VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_SUPABASE_URL=your-supabase-url
+VITE_SUPABASE_ANON_KEY=your-supabase-anon-key
+VITE_API_URL=https://your-image-api.com
 ```
 
-For the Edge Function, set up in Supabase dashboard:
-- `ANTHROPIC_API_KEY`: Your Anthropic API key
+> ✅ Only `auth` is used from Supabase. No image data is stored.
 
-## Local Development
+---
 
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
+## 🧠 How It Works
 
-2. Start the development server:
-   ```bash
-   npm run dev
-   ```
+1. User logs in with Google using Supabase Auth
+2. User uploads up to 10 images
+3. Images are previewed client-side
+4. When "Summarize" is clicked:
+   - Each image is sent to the API with:
+     - `image` (form data)
+     - `userId` (from Supabase session)
+     - `Authorization: Bearer <access_token>` header
+5. The API returns metadata (`title`, `description`, `keywords`)
+6. Metadata is displayed under each image
+7. Users can copy metadata or export as CSV
 
-3. Open [http://localhost:5173](http://localhost:5173) in your browser
+---
 
-## Deployment
+## 🔐 Authentication
 
-1. Install Supabase CLI:
-   ```bash
-   npm install -g supabase
-   ```
+- Supabase is used **only** for Google login.
+- Access token is passed to the image analysis API as a Bearer token in the request header.
 
-2. Login to Supabase:
-   ```bash
-   supabase login
-   ```
+---
 
-3. Link your project:
-   ```bash
-   supabase link --project-ref your_project_ref
-   ```
+## 🧪 Example API Request
 
-4. Deploy the Edge Function:
-   ```bash
-   supabase functions deploy analyze-image
-   ```
+```http
+POST /analyze
+Authorization: Bearer eyJhbGci...
+Content-Type: multipart/form-data
 
-## Database Schema
-
-The application uses a single table for managing user upload limits:
-
-```sql
-CREATE TABLE user_limits (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id uuid REFERENCES auth.users(id) ON DELETE CASCADE,
-  upload_count integer DEFAULT 0,
-  last_upload_date date,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now(),
-  UNIQUE(user_id)
-);
+FormData:
+- image: <uploaded-file>
+- userId: abc-123
 ```
 
-## API Response Format
+---
 
-The Edge Function returns an array of image analysis results:
+## ✅ To Run Locally
 
-```typescript
-interface ImageMetadata {
-  title: string;      // Concise but descriptive title
-  description: string; // 2-3 sentence description
-  keywords: string[]; // Up to 10 relevant keywords
-}
+```bash
+git clone https://github.com/mandarini/kdim-img-simple
+cd image-summarizer
+npm install
+npm run dev
 ```
 
-## Rate Limiting
+Then open: [http://localhost:5173](http://localhost:5173)
 
-- Users are limited to 10 image analyses per day
-- The count resets at midnight UTC
-- Limits are enforced both client-side and server-side
 
-## Security
+---
 
-- Row Level Security (RLS) enabled on all tables
-- Users can only access their own data
-- Authentication required for all API endpoints
-- CORS headers properly configured
+## 🙌 Credits
 
-## Contributing
+- Auth: Supabase
+- UI: Tailwind + Lucide Icons
+- Summarization API: External Python service
 
-1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
-5. Open a Pull Request
 
-## License
-
-MIT License - feel free to use this project for your own purposes.
