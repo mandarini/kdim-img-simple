@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { ImageUploader } from "./components/ImageUploader";
-import { AuthButton } from "./components/AuthButton";
+
 import { StatusBanner, StatusType } from "./components/StatusBanner";
+import { AuthButton } from "./components/AuthButton";
 import { supabase } from "./lib/supabase";
 import { ImageService } from "./lib/analyse-image";
 import { ImageIcon, Copy, Download, Loader } from "lucide-react";
@@ -48,7 +49,6 @@ function App() {
 
     return () => subscription.unsubscribe();
   }, []);
-
   const handleImagesSelected = async (files: File[]) => {
     const previews = await Promise.all(
       files.map(async (file) => {
@@ -68,6 +68,11 @@ function App() {
       })
     );
     setImages(previews);
+  };
+
+  const handleImageRemove = (index: number) => {
+    setImages((prevImages) => prevImages.filter((_, i) => i !== index));
+    setStatus(null);
   };
 
   const handleSummarize = async () => {
@@ -186,6 +191,8 @@ function App() {
         {status && <StatusBanner {...status} onClose={() => setStatus(null)} />}
         <ImageUploader
           onImagesSelected={handleImagesSelected}
+          onImageRemove={handleImageRemove}
+          previews={images.map((img) => `data:image/jpeg;base64,${img.base64}`)}
           disabled={Object.values(processingStates).some(Boolean)}
         />
         {images.length > 0 && (
