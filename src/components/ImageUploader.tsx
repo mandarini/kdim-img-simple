@@ -1,16 +1,21 @@
-import React, { useCallback, useState } from "react";
+import React, { useCallback } from "react";
 import { useDropzone } from "react-dropzone";
-import { Upload } from "lucide-react";
+import { Upload, X } from "lucide-react";
 import clsx from "clsx";
 
 interface ImageUploaderProps {
   onImagesSelected: (files: File[]) => void;
+  onImageRemove?: (index: number) => void;
+  previews: string[];
   disabled?: boolean;
 }
 
-export function ImageUploader({ onImagesSelected, disabled }: ImageUploaderProps) {
-  const [previews, setPreviews] = useState<string[]>([]);
-
+export function ImageUploader({
+  onImagesSelected,
+  onImageRemove,
+  previews,
+  disabled,
+}: ImageUploaderProps) {
   const onDrop = useCallback(
     (accepted: File[]) => {
       if (accepted.length > 10) {
@@ -19,19 +24,7 @@ export function ImageUploader({ onImagesSelected, disabled }: ImageUploaderProps
       }
 
       const files = accepted.slice(0, 10);
-      const previewPromises = files.map(
-        (file) =>
-          new Promise<string>((resolve) => {
-            const reader = new FileReader();
-            reader.onloadend = () => resolve(reader.result as string);
-            reader.readAsDataURL(file);
-          })
-      );
-
-      Promise.all(previewPromises).then((urls) => {
-        setPreviews(urls);
-        onImagesSelected(files);
-      });
+      onImagesSelected(files);
     },
     [onImagesSelected]
   );
@@ -57,12 +50,24 @@ export function ImageUploader({ onImagesSelected, disabled }: ImageUploaderProps
       {previews.length > 0 ? (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           {previews.map((src, idx) => (
-            <img
-              key={idx}
-              src={src}
-              alt={`Preview ${idx}`}
-              className="rounded object-cover h-32 w-full shadow"
-            />
+            <div key={idx} className="relative group">
+              <img
+                src={src}
+                alt={`Preview ${idx}`}
+                className="rounded object-cover h-32 w-full shadow"
+              />
+              {onImageRemove && (
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onImageRemove(idx);
+                  }}
+                  className="absolute top-2 right-2 p-1 bg-white rounded-full shadow opacity-0 group-hover:opacity-100 transition-opacity"
+                >
+                  <X className="w-4 h-4 text-gray-600" />
+                </button>
+              )}
+            </div>
           ))}
         </div>
       ) : (
