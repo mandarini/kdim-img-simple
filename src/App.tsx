@@ -17,19 +17,26 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [images, setImages] = useState<ProcessedImage[]>([]);
   const [status, setStatus] = useState<Status | null>(null);
-  const [processingStates, setProcessingStates] = useState<Record<string, boolean>>({});
+  const [processingStates, setProcessingStates] = useState<
+    Record<string, boolean>
+  >({});
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session }, error }) => {
       if (error) {
         console.error("Error checking auth state:", error.message);
-        setStatus({ message: "Error checking authentication status", type: "error" });
+        setStatus({
+          message: "Error checking authentication status",
+          type: "error",
+        });
       }
       setIsAuthenticated(!!session);
       setIsLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((event, session) => {
       setIsAuthenticated(!!session);
       if (event === "SIGNED_IN") {
         setStatus({ message: "Successfully signed in!", type: "success" });
@@ -65,16 +72,31 @@ function App() {
 
   const handleSummarize = async () => {
     if (!isAuthenticated) return;
+  
     setStatus({ message: "Analyzing images...", type: "info" });
-
+  
+    // Step 1: get user ID from Supabase session
+    const { data, error } = await supabase.auth.getSession();
+    const userId = data.session?.user.id;
+  
+    if (error || !userId) {
+      setStatus({ message: "Unable to get user ID. Please sign in again.", type: "error" });
+      return;
+    }
+  
+    // Step 2: set processing states
     const newStates: Record<string, boolean> = {};
     images.forEach((img) => (newStates[img.id] = true));
     setProcessingStates(newStates);
-
+  
+    // Step 3: call processImage for each image
     try {
       const analyzed = await Promise.all(
         images.map(async (img) => {
-          const metadata = await ImageService.processImage({ image: img.file });
+          const metadata = await ImageService.processImage({
+            image: img.file,
+            userId,
+          });
           return { ...img, metadata };
         })
       );
@@ -82,11 +104,12 @@ function App() {
       setStatus({ message: "Analysis complete!", type: "success" });
     } catch (error) {
       console.error(error);
-      setStatus({ message: "Image analysis failed.", type: "error" });
+      setStatus({ message: "Image analysis failed. Please try again.", type: "error" });
     } finally {
       setProcessingStates({});
     }
   };
+  
 
   const copyToClipboard = async (text: string) => {
     try {
@@ -107,7 +130,9 @@ function App() {
     ]);
     const csvContent = [
       headers.join(","),
-      ...rows.map((row) => row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")),
+      ...rows.map((row) =>
+        row.map((cell) => `"${cell.replace(/"/g, '""')}"`).join(",")
+      ),
     ].join("\n");
 
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
@@ -129,9 +154,14 @@ function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <ImageIcon className="w-10 h-10 text-blue-500 mb-4" />
-        <h1 className="text-xl font-semibold mb-2">Anthropic Image Summarizer</h1>
+        <h1 className="text-xl font-semibold mb-2">
+          Anthropic Image Summarizer
+        </h1>
         <p className="text-gray-600 mb-6">Sign in with Google to get started</p>
-        <AuthButton isAuthenticated={isAuthenticated} onAuthChange={setIsAuthenticated} />
+        <AuthButton
+          isAuthenticated={isAuthenticated}
+          onAuthChange={setIsAuthenticated}
+        />
       </div>
     );
   }
@@ -143,12 +173,18 @@ function App() {
           <ImageIcon className="w-6 h-6 text-blue-500" />
           <h1 className="text-lg font-semibold">Anthropic Image Summarizer</h1>
         </div>
-        <AuthButton isAuthenticated={isAuthenticated} onAuthChange={setIsAuthenticated} />
+        <AuthButton
+          isAuthenticated={isAuthenticated}
+          onAuthChange={setIsAuthenticated}
+        />
       </header>
 
       <main className="max-w-6xl mx-auto px-4 py-8">
         {status && <StatusBanner {...status} onClose={() => setStatus(null)} />}
-        <ImageUploader onImagesSelected={handleImagesSelected} disabled={Object.values(processingStates).some(Boolean)} />
+        <ImageUploader
+          onImagesSelected={handleImagesSelected}
+          disabled={Object.values(processingStates).some(Boolean)}
+        />
         {images.length > 0 && (
           <div className="mt-4 flex justify-end">
             <button
@@ -177,14 +213,19 @@ function App() {
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {images.map((img) => (
-                <div key={img.id} className="bg-white rounded shadow-sm overflow-hidden">
+                <div
+                  key={img.id}
+                  className="bg-white rounded shadow-sm overflow-hidden"
+                >
                   <img
                     src={`data:image/jpeg;base64,${img.base64}`}
                     alt={img.originalName}
                     className="w-full h-48 object-cover"
                   />
                   <div className="p-4 space-y-3">
-                    <div className="text-sm text-gray-500">{img.originalName}</div>
+                    <div className="text-sm text-gray-500">
+                      {img.originalName}
+                    </div>
                     {processingStates[img.id] ? (
                       <div className="flex items-center justify-center text-gray-500">
                         <Loader className="w-5 h-5 animate-spin mr-2" />
@@ -194,27 +235,53 @@ function App() {
                       img.metadata && (
                         <>
                           <div>
-                            <button onClick={() => copyToClipboard(img?.metadata?.title || "")} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900">
+                            <button
+                              onClick={() =>
+                                copyToClipboard(img?.metadata?.title || "")
+                              }
+                              className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+                            >
                               <Copy className="w-4 h-4" />
                               <span className="font-medium">Title:</span>
                             </button>
-                            <p className="text-gray-900">{img.metadata.title}</p>
+                            <p className="text-gray-900">
+                              {img.metadata.title}
+                            </p>
                           </div>
                           <div>
-                            <button onClick={() => copyToClipboard(img?.metadata?.description || "")} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900">
+                            <button
+                              onClick={() =>
+                                copyToClipboard(
+                                  img?.metadata?.description || ""
+                                )
+                              }
+                              className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+                            >
                               <Copy className="w-4 h-4" />
                               <span className="font-medium">Description:</span>
                             </button>
-                            <p className="text-gray-900">{img.metadata.description}</p>
+                            <p className="text-gray-900">
+                              {img.metadata.description}
+                            </p>
                           </div>
                           <div>
-                            <button onClick={() => copyToClipboard(img?.metadata?.keywords.join(", ") || "")} className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900">
+                            <button
+                              onClick={() =>
+                                copyToClipboard(
+                                  img?.metadata?.keywords.join(", ") || ""
+                                )
+                              }
+                              className="flex items-center gap-1 text-sm text-gray-600 hover:text-gray-900"
+                            >
                               <Copy className="w-4 h-4" />
                               <span className="font-medium">Keywords:</span>
                             </button>
                             <div className="flex flex-wrap gap-2 mt-1">
                               {img.metadata.keywords.map((kw, idx) => (
-                                <span key={idx} className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-sm">
+                                <span
+                                  key={idx}
+                                  className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-sm"
+                                >
                                   {kw}
                                 </span>
                               ))}

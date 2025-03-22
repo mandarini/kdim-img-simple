@@ -27,13 +27,15 @@ export class ImageService {
 
   static async processImage({
     image,
+    userId,
   }: ProcessImageRequest): Promise<ImageSummary> {
     const preview = await this.getImagePreview(image);
+
     const formData = new FormData();
     formData.append("image", image);
+    formData.append("userId", userId);
 
     const apiUrl = import.meta.env.VITE_API_URL;
-    console.log(apiUrl);
     if (!apiUrl) throw new Error("API URL not configured");
 
     const res = await fetch(`${apiUrl}/analyze`, {
