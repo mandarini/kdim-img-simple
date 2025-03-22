@@ -204,15 +204,13 @@ function App() {
           <div className="mt-8 space-y-8">
             <div className="flex justify-between items-center">
               <h2 className="text-xl font-semibold">Results</h2>
-              {images.length > 1 && (
-                <button
-                  onClick={downloadCSV}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
-                >
-                  <Download className="w-4 h-4" />
-                  Export as CSV
-                </button>
-              )}
+              <button
+                onClick={downloadCSV}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+              >
+                <Download className="w-4 h-4" />
+                Export as CSV
+              </button>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
               {images.map((img) => (
