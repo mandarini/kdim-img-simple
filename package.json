@@ -1,5 +1,5 @@
 {
-  "name": "anthropic-image-summarizer",
+  "name": "photo-summarizer",
   "private": true,
   "version": "1.0.0",
   "type": "module",

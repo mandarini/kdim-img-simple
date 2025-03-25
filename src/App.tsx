@@ -163,7 +163,7 @@ function App() {
       <div className="min-h-screen flex flex-col items-center justify-center p-6 text-center">
         <ImageIcon className="w-10 h-10 text-blue-500 mb-4" />
         <h1 className="text-xl font-semibold mb-2">
-          Anthropic Image Summarizer
+          Photo Summarizer
         </h1>
         <p className="text-gray-600 mb-6">Sign in with Google to get started</p>
         <AuthButton
@@ -179,7 +179,7 @@ function App() {
       <header className="border-b bg-white p-4 flex justify-between items-center">
         <div className="flex items-center space-x-2">
           <ImageIcon className="w-6 h-6 text-blue-500" />
-          <h1 className="text-lg font-semibold">Anthropic Image Summarizer</h1>
+          <h1 className="text-lg font-semibold">Photo Summarizer</h1>
         </div>
         <AuthButton
           isAuthenticated={isAuthenticated}
