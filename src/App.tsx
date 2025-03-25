@@ -129,7 +129,7 @@ function App() {
   };
 
   const downloadCSV = () => {
-    const headers = ["Filename", "Title", "Description", "Keywords"];
+    const headers = ["file name", "title", "description", "keywords"];
     const rows = images.map((img) => [
       img.originalName,
       img.metadata?.title || "",
