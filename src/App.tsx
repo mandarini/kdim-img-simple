@@ -216,7 +216,7 @@ function App() {
                 className="flex items-center gap-2 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
               >
                 <Download className="w-4 h-4" />
-                Export as CSV
+                Download Getty Images / iStock CSV
               </button>
             </div>
             <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
