@@ -1,4 +1,4 @@
-# Anthropic Image Summarizer
+# Photo Summarizer
 
 A web application that allows authenticated users to upload up to 10 images, analyze them using an external API, and view AI-generated summaries including title, description, and keywords for each image. Users can export the results as a CSV and copy metadata to their clipboard.
 
